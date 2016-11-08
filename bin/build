@@ -29,6 +29,18 @@ if (jsBuildProcess.status) {
 
 console.log('    OK.');
 
+// Copy addons into $BUILD_DIR
+console.log('  - Building ' + buildDir + '/addons...');
+
+var addonsBuildCmd = 'cp -r src/addons ' + buildDir + '/addons';
+var addonsBuildProcess = child_process.execSync(addonsBuildCmd);
+
+if (addonsBuildProcess.status) {
+  console.log(addonsBuildProcess.error);
+}
+
+console.log('    OK.');
+
 // Copy CSS into $BUILD_DIR
 console.log('  - Building ' + buildDir + '/xterm.css...');
 

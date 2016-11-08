@@ -59,7 +59,7 @@ To use an addon, just include the JavaScript file after xterm.js and before the 
 
 ```html
 <script src="node_modules/dist/xterm.js"></script>
-<script src="node_modules/addons/fit/fit.js"></script>
+<script src="node_modules/dist/addons/fit/fit.js"></script>
 ```
 
 ```js
