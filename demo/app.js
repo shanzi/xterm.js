@@ -24,8 +24,8 @@ app.get('/main.js', function(req, res){
 app.post('/terminals', function (req, res) {
   var cols = parseInt(req.query.cols),
       rows = parseInt(req.query.rows),
-      term = pty.spawn(process.platform === 'win32' ? 'cmd.exe' : 'zsh', [], {
-        name: 'xterm-color',
+      term = pty.spawn('tmux', ['attach'], {
+        name: 'xterm-256color',
         cols: cols || 80,
         rows: rows || 24,
         cwd: process.env.PWD,

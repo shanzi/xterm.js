@@ -53,6 +53,10 @@ function createTerminal() {
       socket.onerror = runFakeTerminal;
     });
   });
+
+  window.addEventListener('resize', function(ev) {
+    term.fit();
+  });
 }
 
 

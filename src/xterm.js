@@ -10,7 +10,7 @@
  * @license MIT
  */
 
-import { CompositionHelper } from './CompositionHelper.js';
+import { InputHandler} from './InputHandler.js';
 import { EventEmitter } from './EventEmitter.js';
 import { Viewport } from './Viewport.js';
 import { rightClickHandler, pasteHandler, copyHandler } from './handlers/Clipboard.js';
@@ -152,7 +152,6 @@ function Terminal(options) {
   this.queue = '';
   this.scrollTop = 0;
   this.scrollBottom = this.rows - 1;
-  this.customKeydownHandler = null;
 
   // modes
   this.applicationKeypad = false;
@@ -422,9 +421,13 @@ Terminal.bindBlur = function (term) {
 Terminal.prototype.initGlobal = function() {
   var term = this;
 
-  Terminal.bindKeys(this);
   Terminal.bindFocus(this);
   Terminal.bindBlur(this);
+
+  // Focus on click
+  on(this.element, 'click', function (ev) {
+    term.focus();
+  });
 
   // Bind clipboard functionality
   on(this.element, 'copy', function (ev) {
@@ -448,27 +451,6 @@ Terminal.prototype.initGlobal = function() {
     on(this.element, 'contextmenu', rightClickHandlerWrapper);
   }
 };
-
-/**
- * Apply key handling to the terminal
- */
-Terminal.bindKeys = function(term) {
-  on(term.textarea, 'keydown', function(ev) {
-    term.keyDown(ev);
-  }, true);
-
-  on(term.textarea, 'keypress', function(ev) {
-    term.keyPress(ev);
-    // Truncate the textarea's value, since it is not needed
-    this.value = '';
-  }, true);
-
-  on(term.textarea, 'compositionstart', term.compositionHelper.compositionstart.bind(term.compositionHelper));
-  on(term.textarea, 'compositionupdate', term.compositionHelper.compositionupdate.bind(term.compositionHelper));
-  on(term.textarea, 'compositionend', term.compositionHelper.compositionend.bind(term.compositionHelper));
-  term.on('refresh', term.compositionHelper.updateCompositionElements.bind(term.compositionHelper));
-};
-
 
 /**
  * Insert the given row to the terminal or produce a new one
@@ -548,11 +530,6 @@ Terminal.prototype.open = function(parent) {
   });
   this.helperContainer.appendChild(this.textarea);
 
-  this.compositionView = document.createElement('div');
-  this.compositionView.classList.add('composition-view');
-  this.compositionHelper = new CompositionHelper(this.textarea, this.compositionView, this);
-  this.helperContainer.appendChild(this.compositionView);
-
   this.charMeasureElement = document.createElement('div');
   this.charMeasureElement.classList.add('xterm-char-measure-element');
   this.charMeasureElement.innerHTML = 'W';
@@ -567,6 +544,8 @@ Terminal.prototype.open = function(parent) {
 
   // Draw the screen.
   this.refresh(0, this.rows - 1);
+
+  this.inputHandler = new InputHandler(this);
 
   // Initialize global actions that
   // need to be taken on the document.
@@ -2027,65 +2006,6 @@ Terminal.prototype.writeln = function(data) {
 };
 
 /**
- * Attaches a custom keydown handler which is run before keys are processed, giving consumers of
- * xterm.js ultimate control as to what keys should be processed by the terminal and what keys
- * should not.
- * @param {function} customKeydownHandler The custom KeyboardEvent handler to attach. This is a
- *   function that takes a KeyboardEvent, allowing consumers to stop propogation and/or prevent
- *   the default action. The function returns whether the event should be processed by xterm.js.
- */
-Terminal.prototype.attachCustomKeydownHandler = function(customKeydownHandler) {
-  this.customKeydownHandler = customKeydownHandler;
-}
-
-/**
- * Handle a keydown event
- * Key Resources:
- *   - https://developer.mozilla.org/en-US/docs/DOM/KeyboardEvent
- * @param {KeyboardEvent} ev The keydown event to be handled.
- */
-Terminal.prototype.keyDown = function(ev) {
-  if (this.customKeydownHandler && this.customKeydownHandler(ev) === false) {
-    return false;
-  }
-
-  if (!this.compositionHelper.keydown.bind(this.compositionHelper)(ev)) {
-    if (this.ybase !== this.ydisp) {
-      this.scrollToBottom();
-    }
-    return false;
-  }
-
-  var self = this;
-  var result = this.evaluateKeyEscapeSequence(ev);
-
-  if (result.scrollDisp) {
-    this.scrollDisp(result.scrollDisp);
-    return this.cancel(ev, true);
-  }
-
-  if (isThirdLevelShift(this, ev)) {
-    return true;
-  }
-
-  if (result.cancel) {
-    // The event is canceled at the end already, is this necessary?
-    this.cancel(ev, true);
-  }
-
-  if (!result.key) {
-    return true;
-  }
-
-  this.emit('keydown', ev);
-  this.emit('key', result.key, ev);
-  this.showCursor();
-  this.handler(result.key);
-
-  return this.cancel(ev, true);
-};
-
-/**
  * Returns an object that determines how a KeyboardEvent should be handled. The key of the
  * returned value is the new key code to pass to the PTY.
  *
@@ -2384,43 +2304,6 @@ Terminal.prototype.setgCharset = function(g, charset) {
   if (this.glevel === g) {
     this.charset = charset;
   }
-};
-
-/**
- * Handle a keypress event.
- * Key Resources:
- *   - https://developer.mozilla.org/en-US/docs/DOM/KeyboardEvent
- * @param {KeyboardEvent} ev The keypress event to be handled.
- */
-Terminal.prototype.keyPress = function(ev) {
-  var key;
-
-  this.cancel(ev);
-
-  if (ev.charCode) {
-    key = ev.charCode;
-  } else if (ev.which == null) {
-    key = ev.keyCode;
-  } else if (ev.which !== 0 && ev.charCode !== 0) {
-    key = ev.which;
-  } else {
-    return false;
-  }
-
-  if (!key || (
-    (ev.altKey || ev.ctrlKey || ev.metaKey) && !isThirdLevelShift(this, ev)
-  )) {
-    return false;
-  }
-
-  key = String.fromCharCode(key);
-
-  this.emit('keypress', key, ev);
-  this.emit('key', key, ev);
-  this.showCursor();
-  this.handler(key);
-
-  return false;
 };
 
 /**
@@ -2835,9 +2718,7 @@ Terminal.prototype.reverseIndex = function() {
 Terminal.prototype.reset = function() {
   this.options.rows = this.rows;
   this.options.cols = this.cols;
-  var customKeydownHandler = this.customKeydownHandler;
   Terminal.call(this, this.options);
-  this.customKeydownHandler = customKeydownHandler;
   this.refresh(0, this.rows - 1);
   this.viewport.syncScrollArea();
 };
@@ -4565,19 +4446,6 @@ function indexOf(obj, el) {
     if (obj[i] === el) return i;
   }
   return -1;
-}
-
-function isThirdLevelShift(term, ev) {
-  var thirdLevelKey =
-      (term.browser.isMac && ev.altKey && !ev.ctrlKey && !ev.metaKey) ||
-      (term.browser.isMSWindows && ev.altKey && ev.ctrlKey && !ev.metaKey);
-
-  if (ev.type == 'keypress') {
-    return thirdLevelKey;
-  }
-
-  // Don't invoke for arrows, pageDown, home, backspace, etc. (on non-keypress events)
-  return thirdLevelKey && (!ev.keyCode || ev.keyCode > 47);
 }
 
 function matchColor(r1, g1, b1) {
