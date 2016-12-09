@@ -33,6 +33,7 @@ function createTerminal() {
 
   term.open(terminalContainer);
   term.fit();
+  term.toggleFullscreen(true);
 
   var initialGeometry = term.proposeGeometry(),
       cols = initialGeometry.cols,

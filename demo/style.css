@@ -5,13 +5,12 @@ body {
 }
 
 #terminal-container {
-    width: 100%;
-    height: 100%;
+    background-color: black;
+    user-select: none;
     margin: 0;
 }
 
 #terminal-container .terminal {
-    background-color: #111;
     color: #fafafa;
 }
 
