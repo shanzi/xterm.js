@@ -6,28 +6,7 @@ var term,
     charWidth,
     charHeight;
 
-var terminalContainer = document.getElementById('terminal-container'),
-    optionElements = {
-      cursorBlink: document.querySelector('#option-cursor-blink')
-    },
-    colsElement = document.getElementById('cols'),
-    rowsElement = document.getElementById('rows');
-
-function setTerminalSize () {
-  var cols = parseInt(colsElement.value),
-      rows = parseInt(rowsElement.value),
-      width = (cols * charWidth).toString() + 'px',
-      height = (rows * charHeight).toString() + 'px';
-
-  terminalContainer.style.width = width;
-  terminalContainer.style.height = height;
-  term.resize(cols, rows);
-}
-
-colsElement.addEventListener('change', setTerminalSize);
-rowsElement.addEventListener('change', setTerminalSize);
-
-optionElements.cursorBlink.addEventListener('change', createTerminal);
+var terminalContainer = document.getElementById('terminal-container');
 
 createTerminal();
 
@@ -37,7 +16,7 @@ function createTerminal() {
     terminalContainer.removeChild(terminalContainer.children[0]);
   }
   term = new Terminal({
-    cursorBlink: optionElements.cursorBlink.checked
+    cursorBlink: true,
   });
   term.on('resize', function (size) {
     if (!pid) {
@@ -58,9 +37,6 @@ function createTerminal() {
   var initialGeometry = term.proposeGeometry(),
       cols = initialGeometry.cols,
       rows = initialGeometry.rows;
-
-  colsElement.value = cols;
-  rowsElement.value = rows;
 
   fetch('/terminals?cols=' + cols + '&rows=' + rows, {method: 'POST'}).then(function (res) {
 
